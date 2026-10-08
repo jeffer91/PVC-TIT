@@ -1,0 +1,25 @@
+const {onCall,HttpsError}=require("firebase-functions/v2/https");
+const {initializeApp}=require("firebase-admin/app");
+const {getFirestore}=require("firebase-admin/firestore");
+initializeApp();
+const db=getFirestore();
+exports.consultarFicha=onCall({region:"us-central1",maxInstances:10,timeoutSeconds:15,cors:true},async request=>{
+ const user=request.auth;
+ if(!user || !user.token.email || !user.token.email_verified)throw new HttpsError("unauthenticated","Verifica tu correo antes de consultar.");
+ const cedula=String(request.data?.cedula||"").trim();
+ if(!/^\d{10}$/.test(cedula))throw new HttpsError("invalid-argument","Cédula no válida.");
+ const snap=await db.collection("Estudiante").doc(cedula).get();
+ if(!snap.exists)throw new HttpsError("not-found","Registro no disponible.");
+ const student=snap.data();
+ if(student.eliminado===true)throw new HttpsError("not-found","Registro no disponible.");
+ const email=user.token.email.toLowerCase();
+ const emails=[student.correoInstitucional,student.correoPersonal].filter(Boolean).map(x=>String(x).trim().toLowerCase());
+ if(!emails.includes(email))throw new HttpsError("permission-denied","No autorizado para esta cédula.");
+ const start=cedula+"__";
+ const docs=await db.collection("matriculas").orderBy("localId").startAt(start).endAt(start+"\uf8ff").limit(100).get();
+ const records=docs.docs.map(d=>d.data()).filter(r=>String(r.localId||"").startsWith(start)&&r.retirado!==true);
+ records.sort((a,b)=>String(b.periodoId||"").localeCompare(String(a.periodoId||"")));
+ const matching=records.filter(r=>String(r.nombreCarrera||"").trim().toUpperCase()===String(student.nombreCarreraActual||"").trim().toUpperCase());
+ const selected=(matching.length?matching:records)[0];
+ return {nombres:String(student.nombres||""),cedula,nombreCarreraActual:String(student.nombreCarreraActual||""),periodoId:selected?.periodoId||null};
+});
