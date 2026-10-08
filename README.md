@@ -29,3 +29,16 @@ La función también lee `titulos-ec2fa/envios` mediante una segunda instancia A
 La interfaz presenta aprobado final solo para `estado=APROBADO_FINAL`, títulos enviados y comentarios. Debes desplegar la función actualizada con `firebase deploy --only functions --project utet-4387a` y confirmar la publicación GitHub Pages. Sin este despliegue la segunda consulta no funcionará.
 
 **Privacidad:** conocer la cédula permite ver información académica sin autenticar identidad. Requiere autorización institucional expresa antes de exposición pública; límites por IP y CORS no ofrecen verificación de titularidad.
+
+## Resolver error CORS / preflight de consultarFicha
+El front-end de GitHub Pages **no** despliega Cloud Functions. Existe un workflow manual en **Actions → Desplegar backend PVC-TIT → Run workflow**.
+
+Antes de ejecutarlo, un administrador de Google Cloud debe:
+1. Crear o seleccionar una cuenta de servicio de despliegue para `utet-4387a`, otorgándole los roles mínimos necesarios para desplegar Functions Gen2 (Cloud Functions Developer, permiso Service Account User sobre la identidad de ejecución y permisos de compilación/artifacts necesarios). No incluir JSON de credenciales en el repositorio.
+2. Registrar su JSON como secreto de GitHub Actions: `FIREBASE_SERVICE_ACCOUNT_UTET`. Es preferible migrar a Workload Identity Federation para evitar claves persistentes.
+3. Verificar que Cloud Functions/Cloud Run estén habilitados y facturación compatible.
+4. Conceder al **service account de ejecución de consultarFicha** permisos de **lectura** Firestore en `titulos-ec2fa` (por ejemplo `roles/datastore.viewer`). Es una identidad distinta de la cuenta de despliegue.
+5. Revisar la política institucional de privacidad: al consultar solo por cédula, el acceso es público a cualquiera que conozca ese número. Si se autoriza expresamente ese diseño, configurar el invocador de la función Gen2 para permitir invocaciones sin autenticación; de lo contrario, mantenerlo restringido. Un preflight 403/401 sin cabeceras CORS puede deberse a Cloud Run Invoker. No abrir reglas de Firestore.
+6. Ejecutar el workflow manual y consultar sus registros. Solo cuando el deploy e IAM finalicen, probar la aplicación.
+
+Si un bloqueo CORS persiste, abrir las herramientas de red y verificar el código HTTP de OPTIONS. El navegador **no puede leer un error interno si CORS bloquea la respuesta**. El mensaje de la web incluye diagnóstico de transporte, no presume el error exacto de Google Cloud.
