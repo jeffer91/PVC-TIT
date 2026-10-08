@@ -22,3 +22,10 @@ El estudiante ingresa únicamente su cédula (10 dígitos). La aplicación muest
 - **No abrir reglas de lectura general para Firestore.** El frontend no usa el SDK de Firestore. Revisar reglas existentes independientemente.
 - Recomendado antes de producción: Firebase App Check (configurar la web y habilitar `enforceAppCheck` en la función), controles contra IP compartidas / abuso distribuido, alertas y monitoreo, política de retención de contadores (configurar TTL en `expireAt` de `_pvcTitRateLimits`).
 - No desplegar aún como servicio público si la organización no autorizó una consulta de información personal sin verificación de identidad.
+
+## Segunda consulta de títulos
+La función también lee `titulos-ec2fa/envios` mediante una segunda instancia Admin SDK. **Es obligatorio conceder permisos IAM de lectura Firestore al service account de la función de `utet-4387a` en el proyecto `titulos-ec2fa`** (por ejemplo, `roles/datastore.viewer`). Configurar el proyecto secundario no concede acceso automáticamente. Mantener reglas Firestore cerradas.
+
+La interfaz presenta aprobado final solo para `estado=APROBADO_FINAL`, títulos enviados y comentarios. Debes desplegar la función actualizada con `firebase deploy --only functions --project utet-4387a` y confirmar la publicación GitHub Pages. Sin este despliegue la segunda consulta no funcionará.
+
+**Privacidad:** conocer la cédula permite ver información académica sin autenticar identidad. Requiere autorización institucional expresa antes de exposición pública; límites por IP y CORS no ofrecen verificación de titularidad.
