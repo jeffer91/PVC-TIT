@@ -1,20 +1,24 @@
-# PVC-TIT · ITSQMET
+# PVC-TIT · Consulta ITSQMET
 
-Consulta académica de estudiantes (solo lectura). Interfaz estática para GitHub Pages y API segura mediante Firebase Functions.
+El estudiante ingresa únicamente su cédula (10 dígitos). La aplicación muestra nombres, cédula, carrera actual y último período disponible, sin solicitar cuenta, correo ni contraseña.
 
-## Despliegue
-1. En GitHub → Settings → Pages, selecciona **GitHub Actions**. El workflow de este repositorio publicará la interfaz.
-2. En Firebase → Authentication → Sign-in method, activa **Email link (passwordless sign-in)** y Email/Password si lo solicita.
-3. En Authentication → Settings → Authorized domains, añade `jeffer91.github.io`.
-4. En un equipo con Firebase CLI: `npm install -g firebase-tools`, `firebase login`, `cd functions && npm install && cd ..`, `firebase deploy --only functions --project utet-4387a`. Firebase Cloud Functions normalmente requiere Blaze.
-5. El correo utilizado debe coincidir con `correoInstitucional` o `correoPersonal` de `Estudiante/{cedula}`.
-6. Revisa que no existan reglas abiertas de Firestore. La función utiliza Admin SDK y no requiere exponer colecciones al cliente. No despliegues reglas desde aquí sin revisar primero las existentes.
+## Arquitectura
+- Frontend: GitHub Pages, `index.html`.
+- Backend: callable Firebase Function `consultarFicha` (requiere despliegue independiente).
+- Firestore: solo lectura de `Estudiante/{cedula}` y `matriculas` mediante Admin SDK. La función escribe exclusivamente contadores en `_pvcTitRateLimits`, NO edita datos académicos.
+- Matrículas: búsqueda por prefijo de `localId`, excluye `retirado: true`, prioriza coincidencia de carrera y después el `periodoId` más reciente.
 
-## Consultas
-- `Estudiante/{cedula}`: `nombres`, `cedula`, `nombreCarreraActual`, y correos únicamente para autorización.
-- `matriculas`: busca por prefijo de `localId = cedula + "__"`, excluye retirados, prioriza coincidencia exacta de nombre de carrera y el `periodoId` más reciente.
-- Si hay más de 100 matrículas para una cédula, revisar la estrategia del límite. Si ninguna coincide con la carrera, usa la más reciente.
-- La plataforma **no modifica datos**.
+## Desplegar
+1. En GitHub → Settings → Pages: Source **GitHub Actions**, si aún no se encuentra publicado.
+2. Instalar Firebase CLI: `npm install -g firebase-tools` y `firebase login`.
+3. En el repositorio: `cd functions && npm install && cd ..`.
+4. Ejecutar `firebase deploy --only functions --project utet-4387a`.
+5. Comprobar conexión desde `https://jeffer91.github.io/PVC-TIT/`. La función requiere Cloud Functions habilitado, normalmente plan Blaze. No se despliega automáticamente con GitHub Pages.
 
-## Seguridad y pendientes
-No basta conocer una cédula: el usuario debe controlar un correo registrado. Nunca abrir permisos generales de lectura de Firestore. Para producción conviene configurar App Check, control de tasa por usuario/IP y monitoreo de abuso en la función. El dominio y envío de enlaces dependen de configurar Firebase Authentication. GitHub Pages no ejecuta Functions: despliega el backend por separado.
+## Seguridad y privacidad
+- Conocer una cédula NO verifica identidad: **cualquier persona que la conozca puede obtener los cuatro campos expuestos**. Confirmar autorización institucional y base legal antes de uso público.
+- La función restringe CORS a GitHub Pages y limita por IP a 5 consultas/minuto y 30/día (registros de control). CORS NO sustituye autenticación; clientes no navegadores pueden invocarla.
+- Se devuelven exclusivamente los cuatro campos públicos seleccionados; nunca correos, teléfonos, hashes ni otros datos internos.
+- **No abrir reglas de lectura general para Firestore.** El frontend no usa el SDK de Firestore. Revisar reglas existentes independientemente.
+- Recomendado antes de producción: Firebase App Check (configurar la web y habilitar `enforceAppCheck` en la función), controles contra IP compartidas / abuso distribuido, alertas y monitoreo, política de retención de contadores (configurar TTL en `expireAt` de `_pvcTitRateLimits`).
+- No desplegar aún como servicio público si la organización no autorizó una consulta de información personal sin verificación de identidad.
